@@ -16,7 +16,7 @@ library(tidyverse)
 
 ```{r import data of P1}
 subway_df = 
-  read_csv("./data/NYC_Transit_Subway_Entrance_And_Exit_Data.csv") %>%
+  read_csv("./data/NYC_Transit_Subway_Entrance_And_Exit_Data.csv") %>% 
   janitor::clean_names() %>% 
   select(line, station_name, station_latitude, station_longitude, starts_with("route"), entry,
          vending, entrance_type, starts_with("ada")) %>% 
@@ -30,7 +30,7 @@ variable.names(subway_df)
 dim(subway_df)
 ```
 
-This 1868 rows*20 columns data frame contains 20 variables, including "line", "station name", "station latitidu", "station longitude", "route1"-"route11", "entry", "vending", "entrance type", "ada" and "ada notes". After reading files, I use "janitor::clean_names()" to clean up variable names and covert them to lower snake case. And then, applying _select_ function to choose the column I want. Finally, _mutate_ function is used to convert the entry variable to a logical one. However, this data frame is not tidy yet. The different route numbers make it difficult to read.
+This 1868 rows*20 columns data frame contains 20 variables, including "line", "station name", "station latitidu", "station longitude", "route1"-"route11", "entry", "vending", "entrance type", "ada" and "ada notes". After reading files, I use "janitor::clean_names()" to clean up variable names and covert them to lower snake case. And then, applying "select" function to choose the column I want. Finally, "mutate" function is used to convert the entry variable to a logical one. However, this data frame is not tidy yet. The different route numbers make it difficult to read.
 
 
 ```{r numbers and proportion}
@@ -58,3 +58,112 @@ count(A_line, ada == "TRUE")
 
 Obviously, there are 60 stations that serve A line and 17 of them are ADA compliant.
 
+# Problem 2
+
+
+```{r import data of P2}
+wheel_df = 
+  readxl::read_excel("./data/HealthyHarborWaterWheelTotals2018-7-28.xlsx", 
+                     sheet = 1, range = "A2:N338") %>% 
+  janitor::clean_names() %>% 
+  filter(!is.na(dumpster)) %>% 
+  mutate(sports_balls = as.integer(round(sports_balls)))
+```
+
+```{r precipitation data}
+precipitation_2016 = 
+  readxl::read_excel("./data/HealthyHarborWaterWheelTotals2018-7-28.xlsx", 
+                     sheet = 5, range = "A2:B15") %>% 
+  janitor::clean_names() %>% 
+  filter(!is.na(total)) %>% 
+  mutate(year = "2016") %>% 
+  select(year, everything())
+
+
+precipitation_2017 = 
+  readxl::read_excel("./data/HealthyHarborWaterWheelTotals2018-7-28.xlsx", 
+                     sheet = 4, range = "A2:B15") %>% 
+  janitor::clean_names() %>% 
+  filter(!is.na(total)) %>% 
+  mutate(year = "2017") %>% 
+  select(year, everything())
+
+precipitation_df = 
+  bind_rows(precipitation_2016, precipitation_2017) %>%
+  mutate(month = month.name[month])
+```
+
+The Mr.wheel data contains different kinds of 
+```{r}
+wheel_2016 = 
+  filter(wheel_df, year == 2016) %>% 
+  mutate(sports_balls = as.numeric(sports_balls))
+median(wheel_2016$sports_balls)
+```
+
+# Problem 3
+```{r import data of p3}
+devtools::install_github("p8105/p8105.datasets")
+library(p8105.datasets)
+data("brfss_smart2010")
+overall_health_data0 = 
+  janitor::clean_names(brfss_smart2010) %>% 
+  filter(topic == "Overall Health") %>% 
+  select(-"class", -"topic", -"question", -"sample_size",
+         -"confidence_limit_low":-"geo_location") %>% 
+  spread(key = "response", value = data_value) %>% 
+  janitor::clean_names() %>% 
+  select(year, locationabbr, locationdesc, excellent, very_good, good, fair, poor) %>% 
+  mutate(proportion = (excellent + very_good))
+```
+
+According to the instructions of problem3, a data frame has been created. However, in my opinion, it is not reader-friendly. I use another approach to modify it as below although we are not asked to do so since I suppose it is also important to make it more readable.
+
+```{r}
+overall_health_data = 
+  janitor::clean_names(brfss_smart2010) %>% 
+  filter(topic == "Overall Health") %>% 
+  select(-"class", -"topic", -"question", -"sample_size",
+         -"confidence_limit_low":-"geo_location") %>% 
+  rename(state = locationabbr, location = locationdesc) %>% 
+  separate(location, into = c("stateabbr", "location"), "- ") %>% 
+  spread(key = "response", value = data_value) %>% 
+  janitor::clean_names() %>% 
+  select(year, state, location, excellent, very_good, good, fair, poor) %>% 
+  mutate(proportion = (excellent + very_good))
+```
+
+```{r}
+nrow(distinct(overall_health_data, location))
+nrow(distinct(overall_health_data, state))
+data = count(overall_health_data,state) %>% 
+  arrange(desc(n)) 
+```
+
+```{r}
+data_2002 = 
+  filter(overall_health_data, year == 2002, !is.na(excellent))
+median(data_2002$excellent)
+```
+
+```{r}
+ggplot(data_2002, aes(x = excellent)) + 
+  geom_histogram() +
+  labs(
+    title = "Excellent response values in 2002"
+    )
+```
+
+```{r}
+NY_data = 
+  filter(overall_health_data, location == "New York County" | location == "Queens County")
+ggplot(NY_data, aes(x = year, y = excellent, color = location)) + 
+  geom_point() +
+  labs(
+    title = "Excellent response values from 2002-2010",
+    x = "year",
+    y = "proportion of excellent response"
+    ) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
